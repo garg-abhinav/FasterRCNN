@@ -15,7 +15,7 @@ def scalar(data):
 head = FasterRCNN_head_vgg16(n_class=20, ratios=[0.5, 1, 2], anchor_scales=[8, 16, 32], feat_stride=16)
 tail = FasterRCNN_tail_vgg16(n_class=20, ratios=[0.5, 1, 2], anchor_scales=[8, 16, 32], feat_stride=16, roi_size=7)
 
-Faster_RCNN = FasterRCNN_vgg16(head, tail).cuda()
+Faster_RCNN = FasterRCNN_vgg16(head, tail)#.cuda()
 
 dataset = Dataset(opt)
 dataloader = data_.DataLoader(dataset, batch_size=1, shuffle=True, num_workers=8)

@@ -5,8 +5,9 @@ from .utils import preprocess, Transform
 class Dataset:
     def __init__(self, opt):
         self.opt = opt
-        self.db = VOCBboxDataset(opt.voc_data_dir)
-        self.tsf = Transform(opt.min_size, opt.max_size)
+        print(self.opt)
+        self.db = VOCBboxDataset(self.opt['voc_data_dir'])
+        self.tsf = Transform(self.opt['min_size'], self.opt['max_size'])
 
     def __getitem__(self, idx):
         ori_img, bbox, label = self.db[idx]
@@ -20,7 +21,7 @@ class Dataset:
 class TestDataset:
     def __init__(self, opt, split='test'):
         self.opt = opt
-        self.db = VOCBboxDataset(opt.voc_data_dir, split=split)
+        self.db = VOCBboxDataset(self.opt['voc_data_dir'], split=split)
 
     def __getitem__(self, idx):
         ori_img, bbox, label = self.db[idx]
