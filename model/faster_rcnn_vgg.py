@@ -6,7 +6,7 @@ import time
 import os
 from .region_proposal_network import RegionProposalNetwork
 from .utils.creator_tool import ProposalTargetCreator, AnchorTargetCreator
-from ..data.utils import preprocess
+from data.utils import preprocess
 from config.config import opt
 from torchvision.models import vgg16
 from torchvision.ops import RoIPool
