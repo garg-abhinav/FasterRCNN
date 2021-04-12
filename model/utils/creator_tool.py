@@ -3,6 +3,7 @@ import torch
 from torchvision.ops import nms
 from bbox_tools import bbox2loc, bbox_iou, loc2bbox
 
+
 class ProposalTargetCreator(object):
     def __init__(self,
                  n_sample=128,
@@ -13,14 +14,14 @@ class ProposalTargetCreator(object):
         self.pos_ratio = pos_ratio
         self.pos_iou_thresh = pos_iou_thresh
         self.neg_iou_thresh_hi = neg_iou_thresh_hi
-        self.neg_iou_thresh_lo = neg_iou_thresh_lo 
-        
+        self.neg_iou_thresh_lo = neg_iou_thresh_lo
+
     def __call__(self, roi, bbox, label,
-             loc_normalize_mean=(0., 0., 0., 0.),
-             loc_normalize_std=(0.1, 0.1, 0.2, 0.2)):
-             
-        n_bbox, _ = bbox.shape # number of boxes
-        pos_roi_per_image = np.round(self.n_sample * self.pos_ratio) #number of foregrounds
+                 loc_normalize_mean=(0., 0., 0., 0.),
+                 loc_normalize_std=(0.1, 0.1, 0.2, 0.2)):
+
+        n_bbox, _ = bbox.shape  # number of boxes
+        pos_roi_per_image = np.round(self.n_sample * self.pos_ratio)  # number of foregrounds
         iou = bbox_iou(roi, bbox)
 
         gt_assignment = iou.argmax(axis=1)
@@ -59,7 +60,8 @@ class ProposalTargetCreator(object):
         #               ) / np.array(loc_normalize_std, np.float32))
 
         return sample_roi, gt_roi_loc, gt_roi_label
-        
+
+
 class AnchorTargetCreator(object):
 
     def __init__(self,
@@ -70,7 +72,6 @@ class AnchorTargetCreator(object):
         self.pos_iou_thresh = pos_iou_thresh
         self.neg_iou_thresh = neg_iou_thresh
         self.pos_ratio = pos_ratio
-
 
     def __call__(self, bbox, anchor, img_size):
         # """Assign ground truth supervision to sampled subset of anchors.
@@ -104,14 +105,13 @@ class AnchorTargetCreator(object):
             inside_index, anchor, bbox)
 
         # compute bounding box regression targets
-        loc = bbox2loc(anchor, bbox[argmax_ious]) # bbox[argmax_ious][i] gives bbox number that matched to anchor[i]
+        loc = bbox2loc(anchor, bbox[argmax_ious])  # bbox[argmax_ious][i] gives bbox number that matched to anchor[i]
 
         # map up to original set of anchors
         label = _unmap(label, n_anchor, inside_index, fill=-1)
         loc = _unmap(loc, n_anchor, inside_index, fill=0)
 
         return loc, label
-    
 
     def _create_label(self, inside_index, anchor, bbox):
         # label: 1 is positive, 0 is negative, -1 is dont care
@@ -119,15 +119,15 @@ class AnchorTargetCreator(object):
         label.fill(-1)
 
         argmax_ious, max_ious, gt_argmax_ious = \
-            self._calc_ious(anchor, bbox, inside_index)        
+            self._calc_ious(anchor, bbox, inside_index)
 
         label[max_ious < self.neg_iou_thresh] = 0
 
         # positive label: for each gt, anchor with highest iou
-        label[gt_argmax_ious] = 1    
+        label[gt_argmax_ious] = 1
 
         # positive label: above threshold IOU
-        label[max_ious >= self.pos_iou_thresh] = 1   
+        label[max_ious >= self.pos_iou_thresh] = 1
 
         # subsample positive labels if we have too many
         n_pos = int(self.pos_ratio * self.n_sample)
@@ -145,7 +145,7 @@ class AnchorTargetCreator(object):
                 neg_index, size=(len(neg_index) - n_neg), replace=False)
             label[disable_index] = -1
 
-        return argmax_ious, label 
+        return argmax_ious, label
 
     def _calc_ious(self, anchor, bbox, inside_index):
         # ious between the anchors and the gt boxes
@@ -158,33 +158,35 @@ class AnchorTargetCreator(object):
 
         return argmax_ious, max_ious, gt_argmax_ious
 
-    def _unmap(data, count, index, fill=0):
-        # Unmap a subset of item (data) back to the original set of items (of
-        # size count)
 
-        ### try to change with np.zeros
-        if len(data.shape) == 1:
-            ret = np.empty((count,), dtype=data.dtype)
-            ret.fill(fill)
-            ret[index] = data
-        else:
-            ret = np.empty((count,) + data.shape[1:], dtype=data.dtype)
-            ret.fill(fill)
-            ret[index, :] = data
-        return ret
+def _unmap(data, count, index, fill=0):
+    # Unmap a subset of item (data) back to the original set of items (of
+    # size count)
 
-    def _get_inside_index(anchor, H, W):
+    # try to change with np.zeros
+    if len(data.shape) == 1:
+        ret = np.empty((count,), dtype=data.dtype)
+        ret.fill(fill)
+        ret[index] = data
+    else:
+        ret = np.empty((count,) + data.shape[1:], dtype=data.dtype)
+        ret.fill(fill)
+        ret[index, :] = data
+    return ret
+
+
+def _get_inside_index(anchor, H, W):
     # Calc indicies of anchors which are located completely inside of the image
     # whose size is speficied.
-        index_inside = np.where(
-            (anchor[:, 0] >= 0) &
-            (anchor[:, 1] >= 0) &
-            (anchor[:, 2] <= H) &
-            (anchor[:, 3] <= W))[0] 
-        return index_inside
-        
-        
-class ProposalCreator: 
+    index_inside = np.where(
+        (anchor[:, 0] >= 0) &
+        (anchor[:, 1] >= 0) &
+        (anchor[:, 2] <= H) &
+        (anchor[:, 3] <= W))[0]
+    return index_inside
+
+
+class ProposalCreator:
     def __init__(self,
                  parent_model,
                  nms_thresh=0.7,
@@ -200,8 +202,8 @@ class ProposalCreator:
         self.n_train_post_nms = n_train_post_nms
         self.n_test_pre_nms = n_test_pre_nms
         self.n_test_post_nms = n_test_post_nms
-        self.min_size = min_size  
-        
+        self.min_size = min_size
+
     def __call__(self, loc, score,
                  anchor, img_size, scale=1.):
         # NOTE: when test, remember
@@ -252,4 +254,4 @@ class ProposalCreator:
         if n_post_nms > 0:
             keep = keep[:n_post_nms]
         roi = roi[keep.cpu().numpy()]
-        return roi     
+        return roi

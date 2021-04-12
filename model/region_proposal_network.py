@@ -3,10 +3,11 @@ from torch.nn import functional as F
 import torch as t
 from torch import nn
 
-from model.utils.bbox_tools import generate_anchor_base
-from model.utils.creator_tool import ProposalCreator
+from .utils.bbox_tools import generate_anchor_base
+from .utils.creator_tool import ProposalCreator
 
-class RegionProposalNetwork(nn.Module)
+
+class RegionProposalNetwork(nn.Module):
     def __init__(
             self, in_channels=512, mid_channels=512, ratios=[0.5, 1, 2],
             anchor_scales=[8, 16, 32], feat_stride=16,
@@ -61,42 +62,43 @@ class RegionProposalNetwork(nn.Module)
 
         rois = np.concatenate(rois, axis=0)
         roi_indices = np.concatenate(roi_indices, axis=0)
-        return rpn_locs, rpn_scores, rois, roi_indices, anchor 
-        
-        
-    def _enumerate_shifted_anchor(anchor_base, feat_stride, height, width):
-        # Enumerate all shifted anchors:
-        #
-        # add A anchors (1, A, 4) to
-        # cell K shifts (K, 1, 4) to get
-        # shift anchors (K, A, 4)
-        # reshape to (K*A, 4) shifted anchors
-        # return (K*A, 4)
+        return rpn_locs, rpn_scores, rois, roi_indices, anchor
 
-        # !TODO: add support for torch.CudaTensor
-        # xp = cuda.get_array_module(anchor_base)
-        # it seems that it can't be boosed using GPU
 
-        shift_y = np.arange(0, height * feat_stride, feat_stride)
-        shift_x = np.arange(0, width * feat_stride, feat_stride)
-        shift_x, shift_y = np.meshgrid(shift_x, shift_y)
-        shift = np.stack((shift_y.ravel(), shift_x.ravel(),
-                          shift_y.ravel(), shift_x.ravel()), axis=1)
+def _enumerate_shifted_anchor(anchor_base, feat_stride, height, width):
+    # Enumerate all shifted anchors:
+    #
+    # add A anchors (1, A, 4) to
+    # cell K shifts (K, 1, 4) to get
+    # shift anchors (K, A, 4)
+    # reshape to (K*A, 4) shifted anchors
+    # return (K*A, 4)
 
-        A = anchor_base.shape[0]
-        K = shift.shape[0]
-        anchor = anchor_base.reshape((1, A, 4)) + \
-                shift.reshape((1, K, 4)).transpose((1, 0, 2))
-        anchor = anchor.reshape((K * A, 4)).astype(np.float32)
-        return anchor 
-        
-    def normal_init(m, mean, stddev, truncated=False):
-        """
-        weight initalizer: truncated normal and random normal.
-        """
-        # x is a parameter
-        if truncated:
-            m.weight.data.normal_().fmod_(2).mul_(stddev).add_(mean)  # not a perfect approximation
-        else:
-            m.weight.data.normal_(mean, stddev)
-            m.bias.data.zero_()   
+    # !TODO: add support for torch.CudaTensor
+    # xp = cuda.get_array_module(anchor_base)
+    # it seems that it can't be boosed using GPU
+
+    shift_y = np.arange(0, height * feat_stride, feat_stride)
+    shift_x = np.arange(0, width * feat_stride, feat_stride)
+    shift_x, shift_y = np.meshgrid(shift_x, shift_y)
+    shift = np.stack((shift_y.ravel(), shift_x.ravel(),
+                      shift_y.ravel(), shift_x.ravel()), axis=1)
+
+    A = anchor_base.shape[0]
+    K = shift.shape[0]
+    anchor = anchor_base.reshape((1, A, 4)) + \
+            shift.reshape((1, K, 4)).transpose((1, 0, 2))
+    anchor = anchor.reshape((K * A, 4)).astype(np.float32)
+    return anchor
+
+
+def normal_init(m, mean, stddev, truncated=False):
+    """
+    weight initalizer: truncated normal and random normal.
+    """
+    # x is a parameter
+    if truncated:
+        m.weight.data.normal_().fmod_(2).mul_(stddev).add_(mean)  # not a perfect approximation
+    else:
+        m.weight.data.normal_(mean, stddev)
+        m.bias.data.zero_()

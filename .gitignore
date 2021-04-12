@@ -29,6 +29,10 @@ Icon
 # Thumbnails
 ._*
 
+# logs
+logs/
+model/checkpoints/
+
 # Files that might appear in the root of a volume
 .DocumentRevisions-V100
 .fseventsd
