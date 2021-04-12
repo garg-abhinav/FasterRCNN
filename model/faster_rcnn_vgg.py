@@ -1,6 +1,6 @@
 import torch as t
 import numpy as np
-from utils.bbox_tools import loc2bbox
+from .utils.bbox_tools import loc2bbox
 from torchvision.ops import nms
 import time
 import os
