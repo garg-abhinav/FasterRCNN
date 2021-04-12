@@ -17,8 +17,10 @@ head = FasterRCNN_head_vgg16(n_class=20, ratios=[0.5, 1, 2], anchor_scales=[8, 1
 tail = FasterRCNN_tail_vgg16(n_class=20, ratios=[0.5, 1, 2], anchor_scales=[8, 16, 32], feat_stride=16, roi_size=7)
 
 if torch.cuda.is_available():
+    print('CUDA AVAILABLE')
     Faster_RCNN = FasterRCNN_vgg16(head, tail).cuda()
 else:
+    print('CUDA NOT AVAILABLE')
     Faster_RCNN = FasterRCNN_vgg16(head, tail)
 
 dataset = Dataset(opt)
