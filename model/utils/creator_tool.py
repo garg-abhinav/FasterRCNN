@@ -28,7 +28,8 @@ class ProposalTargetCreator(object):
         max_iou = iou.max(axis=1)
         # Offset range of classes from [0, n_fg_class - 1] to [1, n_fg_class].
         # The label with value 0 is the background.
-        gt_roi_label = label[gt_assignment] + 1
+        #gt_roi_label = label[gt_assignment] + 1
+        gt_roi_label = label[gt_assignment]
 
         # Select foreground RoIs as those with >= pos_iou_thresh IoU.
         pos_index = np.where(max_iou >= self.pos_iou_thresh)[0]
