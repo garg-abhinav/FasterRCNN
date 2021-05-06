@@ -1,4 +1,4 @@
-from model.faster_rcnn_vgg import FasterRCNNHead, FasterRCNNTail, FasterRCNN
+from model.faster_rcnn import FasterRCNNHead, FasterRCNNTail, FasterRCNN
 from torch.utils import data as data_
 from tqdm import tqdm
 import torch
