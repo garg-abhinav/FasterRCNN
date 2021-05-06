@@ -15,17 +15,17 @@ def scalar(data):
         return data.item()
 
 
-head = FasterRCNNHead(n_class=20, ratios=[0.5, 1, 2], anchor_scales=[8, 16, 32], feat_stride=16,
+head = FasterRCNNHead(n_class=21, ratios=[0.5, 1, 2], anchor_scales=[8, 16, 32], feat_stride=16,
                       model=opt['pretrained_model'])
-tail = FasterRCNNTail(n_class=20, ratios=[0.5, 1, 2], anchor_scales=[8, 16, 32], feat_stride=16, roi_size=7,
+tail = FasterRCNNTail(n_class=21, ratios=[0.5, 1, 2], anchor_scales=[8, 16, 32], feat_stride=16, roi_size=7,
                       model=opt['pretrained_model'])
 
 if torch.cuda.is_available():
     print('CUDA AVAILABLE')
-    Faster_RCNN = FasterRCNN(head, tail).cuda()
+    faster_rcnn = FasterRCNN(head, tail).cuda()
 else:
     print('CUDA NOT AVAILABLE')
-    Faster_RCNN = FasterRCNN(head, tail)
+    faster_rcnn = FasterRCNN(head, tail)
 
 dataset = Dataset(opt)
 dataloader = data_.DataLoader(dataset, batch_size=1, shuffle=True, num_workers=opt['num_workers'])
@@ -48,7 +48,7 @@ for epoch in range(opt['epoch']):
     for ii, (img, bbox_, label_, scale) in tqdm(enumerate(dataloader)):
         scale = scalar(scale)
         img, bbox, label = img.cuda().float(), bbox_.cuda(), label_.cuda()
-        rpn_loc_loss, rpn_cls_loss, roi_loc_loss, roi_cls_loss, total_loss = Faster_RCNN.train_batch(img, bbox, label,
+        rpn_loc_loss, rpn_cls_loss, roi_loc_loss, roi_cls_loss, total_loss = faster_rcnn.train_batch(img, bbox, label,
                                                                                                      scale)
         rpn_loc_loss_log.append(rpn_loc_loss)
         rpn_cls_loss_log.append(rpn_cls_loss)
