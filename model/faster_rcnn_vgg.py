@@ -8,7 +8,7 @@ from .region_proposal_network import RegionProposalNetwork
 from .utils.creator_tool import ProposalTargetCreator, AnchorTargetCreator
 from data.utils import preprocess
 from config.config import opt
-from torchvision.models import vgg16
+from torchvision.models import vgg16, resnet18
 from torchvision.ops import RoIPool
 
 from torch import nn
@@ -23,10 +23,10 @@ def nograd(f):
     return new_f
 
 
-class FasterRCNN_vgg16(nn.Module):
+class FasterRCNN(nn.Module):
     def __init__(self, faster_rcnn_head, faster_rcnn_tail):
 
-        super(FasterRCNN_vgg16, self).__init__()
+        super(FasterRCNN, self).__init__()
         self.head = faster_rcnn_head
         self.tail = faster_rcnn_tail
         self.anchor_target_creator = AnchorTargetCreator()
@@ -290,11 +290,17 @@ def normal_init(m, mean, stddev, truncated=False):
         m.bias.data.zero_()
 
 
-class FasterRCNN_head_vgg16(nn.Module):
-    def __init__(self, n_class=20, ratios=[0.5, 1, 2], anchor_scales=[8, 16, 32], feat_stride=16):
-        super(FasterRCNN_head_vgg16, self).__init__()
-        vgg16_pretrained = vgg16(pretrained=True)
-        feature_extractor = list(vgg16_pretrained.features)[:30]
+class FasterRCNNHead(nn.Module):
+    def __init__(self, n_class=20, ratios=[0.5, 1, 2], anchor_scales=[8, 16, 32], feat_stride=16, model='vgg16'):
+        super(FasterRCNNHead, self).__init__()
+        if model == 'vgg16':
+            pretrained = vgg16(pretrained=True)
+        elif model == 'resnet18':
+            pretrained = resnet18(pretrained=True)
+        else:
+            raise ValueError(f'Model {model} has not been implemented yet')
+
+        feature_extractor = list(pretrained.features)[:30]
 
         for layer in feature_extractor[:10]:
             for p in layer.parameters():
@@ -320,9 +326,10 @@ class FasterRCNN_head_vgg16(nn.Module):
         return features, rpn_locs, rpn_scores, rois, roi_indices, anchor
 
 
-class FasterRCNN_tail_vgg16(nn.Module):
-    def __init__(self, n_class=20, ratios=[0.5, 1, 2], anchor_scales=[8, 16, 32], feat_stride=16, roi_size=7):
-        super(FasterRCNN_tail_vgg16, self).__init__()
+class FasterRCNNTail(nn.Module):
+    def __init__(self, n_class=20, ratios=[0.5, 1, 2], anchor_scales=[8, 16, 32], feat_stride=16, roi_size=7,
+                 model='vgg16'):
+        super(FasterRCNNTail, self).__init__()
         self.n_class = n_class
         self.ratios = ratios
         self.anchor_scales = anchor_scales
@@ -330,9 +337,14 @@ class FasterRCNN_tail_vgg16(nn.Module):
         self.spatial_scale = 1.0 / feat_stride
         self.roi_size = roi_size
 
-        vgg16_pretrained = vgg16(pretrained=True)
+        if model == 'vgg16':
+            pretrained = vgg16(pretrained=True)
+        elif model == 'resnet18':
+            pretrained = resnet18(pretrained=True)
+        else:
+            raise ValueError(f'Model {model} has not been implemented yet')
 
-        classifier = vgg16_pretrained.classifier
+        classifier = pretrained.classifier
         classifier = list(classifier)
 
         del classifier[6]

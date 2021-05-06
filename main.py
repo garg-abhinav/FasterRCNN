@@ -1,9 +1,11 @@
-from model.faster_rcnn_vgg import *
+from model.faster_rcnn_vgg import FasterRCNNHead, FasterRCNNTail, FasterRCNN
 from torch.utils import data as data_
 from tqdm import tqdm
 import torch
-from data.dataset import Dataset, TestDataset
+from data.dataset import Dataset, TestDataset, ValDataset
 from config.config import opt
+import numpy as np
+import torch as t
 
 
 def scalar(data):
@@ -13,21 +15,28 @@ def scalar(data):
         return data.item()
 
 
-head = FasterRCNN_head_vgg16(n_class=20, ratios=[0.5, 1, 2], anchor_scales=[8, 16, 32], feat_stride=16)
-tail = FasterRCNN_tail_vgg16(n_class=20, ratios=[0.5, 1, 2], anchor_scales=[8, 16, 32], feat_stride=16, roi_size=7)
+head = FasterRCNNHead(n_class=20, ratios=[0.5, 1, 2], anchor_scales=[8, 16, 32], feat_stride=16,
+                      model=opt['pretrained_model'])
+tail = FasterRCNNTail(n_class=20, ratios=[0.5, 1, 2], anchor_scales=[8, 16, 32], feat_stride=16, roi_size=7,
+                      model=opt['pretrained_model'])
 
 if torch.cuda.is_available():
     print('CUDA AVAILABLE')
-    Faster_RCNN = FasterRCNN_vgg16(head, tail).cuda()
+    Faster_RCNN = FasterRCNN(head, tail).cuda()
 else:
     print('CUDA NOT AVAILABLE')
-    Faster_RCNN = FasterRCNN_vgg16(head, tail)
+    Faster_RCNN = FasterRCNN(head, tail)
 
 dataset = Dataset(opt)
-dataloader = data_.DataLoader(dataset, batch_size=1, shuffle=True, num_workers=8)
+dataloader = data_.DataLoader(dataset, batch_size=1, shuffle=True, num_workers=opt['num_workers'])
+
+valset = ValDataset(opt)
+val_dataloader = data_.DataLoader(valset, batch_size=1, shuffle=False, num_workers=opt['num_workers'],
+                                  pin_memory=True)
 
 testset = TestDataset(opt)
-test_dataloader = data_.DataLoader(testset, batch_size=1, shuffle=False, num_workers=8, pin_memory=True)
+test_dataloader = data_.DataLoader(testset, batch_size=1, shuffle=False, num_workers=opt['test_num_workers'],
+                                   pin_memory=True)
 
 rpn_loc_loss_log = []
 rpn_cls_loss_log = []
@@ -35,7 +44,7 @@ roi_loc_loss_log = []
 roi_cls_loss_log = []
 total_loss_log = []
 
-for epoch in range(10):
+for epoch in range(opt['epoch']):
     for ii, (img, bbox_, label_, scale) in tqdm(enumerate(dataloader)):
         scale = scalar(scale)
         img, bbox, label = img.cuda().float(), bbox_.cuda(), label_.cuda()

@@ -22,7 +22,7 @@ opt = dict(
 
     # preset
     data='voc',
-    pretrained_model='vgg16',
+    pretrained_model='vgg16',  # change this to resnet18 for resnet18 pretrained model
 
     # training
     epoch=14,
