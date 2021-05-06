@@ -18,7 +18,7 @@ class Dataset:
         return len(self.db)
 
 
-class VAlDataset:
+class ValDataset:
     def __init__(self, opt, split='val'):
         self.opt = opt
         self.db = VOCBboxDataset(self.opt['voc_data_dir'], split=split)
