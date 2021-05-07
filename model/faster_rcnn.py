@@ -47,6 +47,121 @@ class FasterRCNN(nn.Module):
 
         return roi_cls_locs, roi_scores, rois, roi_indices
 
+    def train_rpn_batch(self, imgs, bboxes, labels, scale):
+        n = bboxes.shape[0]
+
+        if n != 1:
+            raise ValueError('Only batch size 1 is supported')
+
+        _, _, H, W = imgs.shape
+        img_size = (H, W)
+
+        features, rpn_locs, rpn_scores, rois, roi_indices, anchor = self.head(imgs, scale=1.)
+
+        # since batch size is one, convert variables to singular form
+        bbox = bboxes[0]
+        label = labels[0]
+        rpn_score = rpn_scores[0]
+        rpn_loc = rpn_locs[0]
+        roi = rois
+
+        # --------------RPN losses--------------#
+        gt_rpn_loc, gt_rpn_label = self.anchor_target_creator(tonumpy(bbox), anchor, img_size)
+        gt_rpn_label = totensor(gt_rpn_label).long()
+        gt_rpn_loc = totensor(gt_rpn_loc)
+
+        rpn_loc_loss = _fast_rcnn_loc_loss(
+            rpn_loc,
+            gt_rpn_loc,
+            gt_rpn_label.data,
+            self.rpn_sigma)
+
+        rpn_cls_loss = F.cross_entropy(rpn_score, gt_rpn_label.cuda(), ignore_index=-1)
+
+        ### don't know what this does
+        _gt_rpn_label = gt_rpn_label[gt_rpn_label > -1]
+        _rpn_score = tonumpy(rpn_score)[tonumpy(gt_rpn_label) > -1]
+        ###
+
+        sum = rpn_loc_loss + rpn_cls_loss
+
+        self.optimizer.zero_grad()
+        sum.backward()
+        self.optimizer.step()
+
+        return rpn_loc_loss, rpn_cls_loss, sum
+
+    def train_rcnn_batch(self, imgs, bboxes, labels, scale):
+        n = bboxes.shape[0]
+
+        if n != 1:
+            raise ValueError('Only batch size 1 is supported')
+
+        _, _, H, W = imgs.shape
+        img_size = (H, W)
+
+        features, rpn_locs, rpn_scores, rois, roi_indices, anchor = self.head(imgs, scale=1.)
+
+        # since batch size is one, convert variables to singular form
+        bbox = bboxes[0]
+        label = labels[0]
+        rpn_score = rpn_scores[0]
+        rpn_loc = rpn_locs[0]
+        roi = rois
+
+        # Sample RoIs and forward
+        sample_roi, gt_roi_loc, gt_roi_label = self.proposal_target_creator(
+            roi,
+            tonumpy(bbox),
+            tonumpy(label),
+            self.loc_normalize_mean,
+            self.loc_normalize_std)
+
+        sample_roi_index = t.zeros(len(sample_roi))
+
+        roi_cls_loc, roi_score = self.tail(features, sample_roi, sample_roi_index)
+
+        # --------------RPN losses--------------#
+        # gt_rpn_loc, gt_rpn_label = self.anchor_target_creator(tonumpy(bbox), anchor, img_size)
+        # gt_rpn_label = totensor(gt_rpn_label).long()
+        # gt_rpn_loc = totensor(gt_rpn_loc)
+
+        # rpn_loc_loss = _fast_rcnn_loc_loss(
+        #     rpn_loc,
+        #     gt_rpn_loc,
+        #     gt_rpn_label.data,
+        #     self.rpn_sigma)
+        #
+        # rpn_cls_loss = F.cross_entropy(rpn_score, gt_rpn_label.cuda(), ignore_index=-1)
+
+        ### don't know what this does
+        # _gt_rpn_label = gt_rpn_label[gt_rpn_label > -1]
+        # _rpn_score = tonumpy(rpn_score)[tonumpy(gt_rpn_label) > -1]
+        ###
+
+        # -----------ROI losses-------------#
+        n_sample = roi_cls_loc.shape[0]
+        roi_cls_loc = roi_cls_loc.view(n_sample, -1, 4)
+        roi_loc = roi_cls_loc[t.arange(0, n_sample).long().cuda(), \
+                              totensor(gt_roi_label).long()]
+        gt_roi_label = totensor(gt_roi_label).long()
+        gt_roi_loc = totensor(gt_roi_loc)
+
+        roi_loc_loss = _fast_rcnn_loc_loss(
+            roi_loc.contiguous(),
+            gt_roi_loc,
+            gt_roi_label.data,
+            self.roi_sigma)
+
+        roi_cls_loss = nn.CrossEntropyLoss()(roi_score, gt_roi_label.cuda())
+        sum = roi_loc_loss + roi_cls_loss
+
+        self.optimizer.zero_grad()
+        sum.backward()
+        self.optimizer.step()
+
+        return roi_loc_loss, roi_cls_loss, sum
+
     def train_batch(self, imgs, bboxes, labels, scale):
         n = bboxes.shape[0]
 
@@ -226,7 +341,7 @@ class FasterRCNN(nn.Module):
         for img, size in zip(prepared_imgs, sizes):
             img = totensor(img[None]).float()
             scale = img.shape[3] / size[1]
-            roi_cls_loc, roi_scores, rois, _ = self(img, scale=scale)
+            roi_cls_loc, roi_scores, rois, _ = self.forward(img, scale=scale)
 
             roi_score = roi_scores.data
             roi_cls_loc = roi_cls_loc.data
@@ -311,7 +426,7 @@ class FasterRCNNHead(nn.Module):
 
         self.rpn = RegionProposalNetwork(512, 512, ratios=ratios, anchor_scales=anchor_scales, feat_stride=feat_stride)
 
-        self.n_class = 20
+        self.n_class = n_class
         self.ratios = ratios
         self.anchor_scales = anchor_scales
         self.feat_stride = feat_stride

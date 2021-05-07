@@ -3,6 +3,7 @@ from torch.utils import data as data_
 from tqdm import tqdm
 import torch
 from data.dataset import Dataset, TestDataset, ValDataset
+from data.voc_dataset import VOC_BBOX_LABELS
 from config.config import opt
 import numpy as np
 import torch as t
@@ -15,10 +16,10 @@ def scalar(data):
         return data.item()
 
 
-head = FasterRCNNHead(n_class=21, ratios=[0.5, 1, 2], anchor_scales=[8, 16, 32], feat_stride=16,
+head = FasterRCNNHead(n_class=len(VOC_BBOX_LABELS)+1, ratios=[0.5, 1, 2], anchor_scales=[8, 16, 32], feat_stride=16,
                       model=opt['pretrained_model'])
-tail = FasterRCNNTail(n_class=21, ratios=[0.5, 1, 2], anchor_scales=[8, 16, 32], feat_stride=16, roi_size=7,
-                      model=opt['pretrained_model'])
+tail = FasterRCNNTail(n_class=len(VOC_BBOX_LABELS)+1, ratios=[0.5, 1, 2], anchor_scales=[8, 16, 32], feat_stride=16,
+                      roi_size=7, model=opt['pretrained_model'])
 
 if torch.cuda.is_available():
     print('CUDA AVAILABLE')
