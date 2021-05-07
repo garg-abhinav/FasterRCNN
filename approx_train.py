@@ -31,10 +31,6 @@ else:
 dataset = Dataset(opt)
 dataloader = data_.DataLoader(dataset, batch_size=1, shuffle=True, num_workers=opt['num_workers'])
 
-valset = ValDataset(opt)
-val_dataloader = data_.DataLoader(valset, batch_size=1, shuffle=False, num_workers=opt['num_workers'],
-                                  pin_memory=True)
-
 testset = TestDataset(opt)
 test_dataloader = data_.DataLoader(testset, batch_size=1, shuffle=False, num_workers=opt['test_num_workers'],
                                    pin_memory=True)

@@ -3,7 +3,7 @@ from .utils import preprocess, Transform
 
 
 class Dataset:
-    def __init__(self, opt, split='train'):
+    def __init__(self, opt, split='trainval'):
         self.opt = opt
         print(self.opt)
         self.db = VOCBboxDataset(self.opt['voc_data_dir'], split=split)
