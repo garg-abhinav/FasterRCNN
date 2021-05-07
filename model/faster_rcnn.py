@@ -8,7 +8,7 @@ from .region_proposal_network import RegionProposalNetwork
 from .utils.creator_tool import ProposalTargetCreator, AnchorTargetCreator
 from data.utils import preprocess
 from config.config import opt
-from torchvision.models import vgg16, resnet18
+from torchvision.models import vgg16, resnet18, resnet34, resnet50, resnet101, resnet152
 from torchvision.ops import RoIPool
 
 from torch import nn
@@ -410,19 +410,26 @@ class FasterRCNNHead(nn.Module):
         super(FasterRCNNHead, self).__init__()
         if model == 'vgg16':
             pretrained = vgg16(pretrained=True)
-        elif model == 'resnet18':
-            pretrained = resnet18(pretrained=True)
+            feature_extractor = list(pretrained.features)[:30]
+
+            for layer in feature_extractor[:10]:
+                for p in layer.parameters():
+                    p.requires_grad = False
+
+            # print(feature_extractor)
+            self.feature_extractor = nn.Sequential(*feature_extractor)
+        elif model == 'resnet101':
+            pretrained = resnet101(pretrained=True)
+            self.feature_extractor = nn.Sequential(pretrained.conv1, pretrained.bn1, pretrained.relu,
+                                          pretrained.maxpool, pretrained.layer1, pretrained.layer2, pretrained.layer3)
+
+            for i in [0, 1, 4, 5, 6]:
+                for p in self.feature_extractor[i].parameters():
+                    p.requires_grad = False
+
+            self.feature_extractor.apply(set_bn_fix)
         else:
             raise ValueError(f'Model {model} has not been implemented yet')
-
-        feature_extractor = list(pretrained.features)[:30]
-
-        for layer in feature_extractor[:10]:
-            for p in layer.parameters():
-                p.requires_grad = False
-
-        # print(feature_extractor)
-        self.feature_extractor = nn.Sequential(*feature_extractor)
 
         self.rpn = RegionProposalNetwork(512, 512, ratios=ratios, anchor_scales=anchor_scales, feat_stride=feat_stride)
 
@@ -451,22 +458,24 @@ class FasterRCNNTail(nn.Module):
         self.feat_stride = feat_stride
         self.spatial_scale = 1.0 / feat_stride
         self.roi_size = roi_size
+        self.base_model = model
 
-        if model == 'vgg16':
+        if self.base_model == 'vgg16':
             pretrained = vgg16(pretrained=True)
-        elif model == 'resnet18':
-            pretrained = resnet18(pretrained=True)
+            classifier = pretrained.classifier
+            classifier = list(classifier)
+            del classifier[6]
+            del classifier[5]
+            del classifier[2]
+            self.classifier = nn.Sequential(*classifier)
+
+        elif self.base_model == 'resnet101':
+            pretrained = resnet101(pretrained=True)
+            self.classifier = nn.Sequential(pretrained.layer4)
+
         else:
-            raise ValueError(f'Model {model} has not been implemented yet')
+            raise ValueError(f'Model {self.base_model} has not been implemented yet')
 
-        classifier = pretrained.classifier
-        classifier = list(classifier)
-
-        del classifier[6]
-        del classifier[5]
-        del classifier[2]
-
-        self.classifier = nn.Sequential(*classifier)
         self.cls_loc = nn.Linear(4096, n_class * 4)
         self.score = nn.Linear(4096, n_class)
         self.roi = RoIPool((self.roi_size, self.roi_size), self.spatial_scale)
@@ -483,7 +492,10 @@ class FasterRCNNTail(nn.Module):
 
         pool = self.roi(features, indices_and_rois)
         pool = pool.view(pool.size(0), -1)
-        fc7 = self.classifier(pool)
+        if self.base_model == 'resnet101':
+            fc7 = self.classifier(pool).mean(3).mean(2)
+        else:
+            fc7 = self.classifier(pool)
         roi_cls_locs = self.cls_loc(fc7)
         roi_scores = self.score(fc7)
 
@@ -510,3 +522,9 @@ def _fast_rcnn_loc_loss(pred_loc, gt_loc, gt_label, sigma):
     # Normalize by total number of negtive and positive rois.
     loc_loss /= ((gt_label >= 0).sum().float())  # ignore gt_label==-1 for rpn_loss
     return loc_loss
+
+
+def set_bn_fix(m):
+    classname = m.__class__.__name__
+    if classname.find('BatchNorm') != -1:
+        for p in m.parameters(): p.requires_grad = False
