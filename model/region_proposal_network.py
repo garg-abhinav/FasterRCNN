@@ -6,7 +6,10 @@ from torch import nn
 from .utils.bbox_tools import generate_anchor_base
 from .utils.creator_tool import ProposalCreator
 
-
+'''
+Region Proposal Network implementation. It takes the features (output of the first convolutional layers) as input.
+It has one intermediate convolutional layer, and 2 separate convolutional layers for both regression and classification.
+'''
 class RegionProposalNetwork(nn.Module):
     def __init__(
             self, in_channels=512, mid_channels=512, ratios=[0.5, 1, 2],
@@ -36,8 +39,7 @@ class RegionProposalNetwork(nn.Module):
         h = F.relu(self.conv1(x))
 
         rpn_locs = self.loc(h)
-        # UNNOTE: check whether need contiguous
-        # A: Yes
+
         rpn_locs = rpn_locs.permute(0, 2, 3, 1).contiguous().view(n, -1, 4)
         rpn_scores = self.score(h)
         rpn_scores = rpn_scores.permute(0, 2, 3, 1).contiguous()
@@ -64,17 +66,13 @@ class RegionProposalNetwork(nn.Module):
 
 
 def _enumerate_shifted_anchor(anchor_base, feat_stride, height, width):
-    # Enumerate all shifted anchors:
-    #
-    # add A anchors (1, A, 4) to
-    # cell K shifts (K, 1, 4) to get
-    # shift anchors (K, A, 4)
-    # reshape to (K*A, 4) shifted anchors
-    # return (K*A, 4)
 
-    # !TODO: add support for torch.CudaTensor
-    # xp = cuda.get_array_module(anchor_base)
-    # it seems that it can't be boosed using GPU
+    '''
+    This function takes the anchor base and shifts them according to subsampling ratio. Here we
+    have 16 as the subsampling ratio.
+    
+    '''
+
 
     shift_y = np.arange(0, height * feat_stride, feat_stride)
     shift_x = np.arange(0, width * feat_stride, feat_stride)
@@ -89,14 +87,10 @@ def _enumerate_shifted_anchor(anchor_base, feat_stride, height, width):
     anchor = anchor.reshape((K * A, 4)).astype(np.float32)
     return anchor
 
-
+# this function initializes a layer with truncated gaussian random variable
 def normal_init(m, mean, stddev, truncated=False):
-    """
-    weight initalizer: truncated normal and random normal.
-    """
-    # x is a parameter
     if truncated:
-        m.weight.data.normal_().fmod_(2).mul_(stddev).add_(mean)  # not a perfect approximation
+        m.weight.data.normal_().fmod_(2).mul_(stddev).add_(mean)  
     else:
         m.weight.data.normal_(mean, stddev)
         m.bias.data.zero_()
