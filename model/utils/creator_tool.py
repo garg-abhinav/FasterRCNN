@@ -82,27 +82,10 @@ class AnchorTargetCreator(object):
         self.pos_ratio = pos_ratio
 
     def __call__(self, bbox, anchor, img_size):
-        # """Assign ground truth supervision to sampled subset of anchors.
-        # Types of input arrays and output arrays are same.
-        # Here are notations.
-        # * :math:`S` is the number of anchors.
-        # * :math:`R` is the number of bounding boxes.
-        # Args:
-        #     bbox (array): Coordinates of bounding boxes. Its shape is
-        #         :math:`(R, 4)`.
-        #     anchor (array): Coordinates of anchors. Its shape is
-        #         :math:`(S, 4)`.
-        #     img_size (tuple of ints): A tuple :obj:`H, W`, which
-        #         is a tuple of height and width of an image.
-        # Returns:
-        #     (array, array):
-        #     #NOTE: it's scale not only  offset
-        #     * **loc**: Offsets and scales to match the anchors to \
-        #         the ground truth bounding boxes. Its shape is :math:`(S, 4)`.
-        #     * **label**: Labels of anchors with values \
-        #         :obj:`(1=positive, 0=negative, -1=ignore)`. Its shape \
-        #         is :math:`(S,)`.
-        # """
+
+        '''
+        Assign ground truth labels (correct ground truth box coordinates and labels {foreground, background}) to anchors for training 
+        '''
 
         img_H, img_W = img_size
 
@@ -178,8 +161,6 @@ class AnchorTargetCreator(object):
 def _unmap(data, count, index, fill=0):
     # Unmap a subset of item (data) back to the original set of items (of
     # size count)
-
-    # try to change with np.zeros
     if len(data.shape) == 1:
         ret = np.empty((count,), dtype=data.dtype)
         ret.fill(fill)
@@ -241,7 +222,7 @@ class ProposalCreator:
         # roi = loc2bbox(anchor, loc)
         roi = loc2bbox(anchor, loc)
 
-        # Clip predicted boxes to image.
+        # Clip predicted boxes according to the image size so that roi doesn't exceed the image
         roi[:, slice(0, 4, 2)] = np.clip(
             roi[:, slice(0, 4, 2)], 0, img_size[0])
         roi[:, slice(1, 4, 2)] = np.clip(
@@ -255,6 +236,7 @@ class ProposalCreator:
         roi = roi[keep, :]
         score = score[keep]
 
+        
         # Sort all (proposal, score) pairs by score from highest to lowest.
         # Take top pre_nms_topN (e.g. 6000).
         order = score.ravel().argsort()[::-1]
@@ -263,11 +245,8 @@ class ProposalCreator:
         roi = roi[order, :]
         score = score[order]
 
-        # Apply nms (e.g. threshold = 0.7).
-        # Take after_nms_topN (e.g. 300).
+        # apply non maximum suppression
 
-        # unNOTE: somthing is wrong here!
-        # TODO: remove cuda.to_gpu
         keep = nms(
             torch.from_numpy(roi).cuda(),
             torch.from_numpy(score).cuda(),
