@@ -3,6 +3,9 @@ import itertools
 from model.utils.bbox_tools import bbox_iou
 from collections import defaultdict
 
+'''
+These functions are used to calculate the mAP values for testing phase
+'''
 
 def eval_detection_voc(
         pred_bboxes, pred_labels, pred_scores, gt_bboxes, gt_labels,
