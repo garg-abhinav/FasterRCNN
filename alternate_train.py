@@ -21,6 +21,12 @@ head = FasterRCNNHead(n_class=len(VOC_BBOX_LABELS)+1, ratios=[0.5, 1, 2], anchor
 tail = FasterRCNNTail(n_class=len(VOC_BBOX_LABELS)+1, ratios=[0.5, 1, 2], anchor_scales=[8, 16, 32], feat_stride=16,
                       roi_size=7, model=opt['pretrained_model'])
 
+
+'''
+This code was written for alternating training strategy; however, we couldn't explore this strategy due to the time
+constraint.
+'''
+
 if torch.cuda.is_available():
     print('CUDA AVAILABLE')
     faster_rcnn = FasterRCNN(head, tail).cuda()
