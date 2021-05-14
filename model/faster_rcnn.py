@@ -48,6 +48,10 @@ class FasterRCNN(nn.Module):
         return roi_cls_locs, roi_scores, rois, roi_indices
 
     '''
+    We were hoping to explore alternating training strategy; however, due to the time restriction, we couldn't do it. This commented code block was aimed for alternating 
+    training strategy.
+    
+    
     def train_rpn_batch(self, imgs, bboxes, labels, scale):
         n = bboxes.shape[0]
 
@@ -164,6 +168,8 @@ class FasterRCNN(nn.Module):
         return roi_loc_loss, roi_cls_loss, sum
     '''
 
+    
+    # Here, we are using approximate joint training method, we update the layers of the Faster R-CNN w.r.to total loss function
     def train_batch(self, imgs, bboxes, labels, scale):
         n = bboxes.shape[0]
 
@@ -175,14 +181,14 @@ class FasterRCNN(nn.Module):
 
         features, rpn_locs, rpn_scores, rois, roi_indices, anchor = self.head(imgs, scale=1.)
 
-        # since batch size is one, convert variables to singular form
+        # our batch size is one, so we turn the array into one-dimensional array.
         bbox = bboxes[0]
         label = labels[0]
         rpn_score = rpn_scores[0]
         rpn_loc = rpn_locs[0]
         roi = rois
 
-        # Sample RoIs and forward
+        # 
         sample_roi, gt_roi_loc, gt_roi_label = self.proposal_target_creator(
             roi,
             tonumpy(bbox),
@@ -194,7 +200,7 @@ class FasterRCNN(nn.Module):
 
         roi_cls_loc, roi_score = self.tail(features, sample_roi, sample_roi_index)
 
-        # --------------RPN losses--------------#
+        # Losses related with region proposal network
         gt_rpn_loc, gt_rpn_label = self.anchor_target_creator(tonumpy(bbox), anchor, img_size)
         gt_rpn_label = totensor(gt_rpn_label).long()
         gt_rpn_loc = totensor(gt_rpn_loc)
@@ -207,12 +213,13 @@ class FasterRCNN(nn.Module):
 
         rpn_cls_loss = F.cross_entropy(rpn_score, gt_rpn_label.cuda(), ignore_index=-1)
 
-        ### don't know what this does
+        # Here we ignore some region proposals which are labeled as '-1', as they don't satisfy the IoU criteria (IoU < 0.3 : 0, IoU > 0.7 :1, everything in between is labeled
+        # as -1)
         _gt_rpn_label = gt_rpn_label[gt_rpn_label > -1]
         _rpn_score = tonumpy(rpn_score)[tonumpy(gt_rpn_label) > -1]
-        ###
+        
 
-        # -----------ROI losses-------------#
+       # losses related with Fast R-CNN output (RoI losses)
         n_sample = roi_cls_loc.shape[0]
         roi_cls_loc = roi_cls_loc.view(n_sample, -1, 4)
         roi_loc = roi_cls_loc[t.arange(0, n_sample).long().cuda(), \
@@ -229,6 +236,7 @@ class FasterRCNN(nn.Module):
         roi_cls_loss = nn.CrossEntropyLoss()(roi_score, gt_roi_label.cuda())
         sum = rpn_loc_loss + rpn_cls_loss + roi_loc_loss + roi_cls_loss
 
+        # we optimize the layers w.r.to the total loss
         self.optimizer.zero_grad()
         sum.backward()
         self.optimizer.step()
@@ -237,8 +245,8 @@ class FasterRCNN(nn.Module):
 
     def get_optimizer(self):
         """
-        return optimizer, It could be overwriten if you want to specify
-        special optimizer
+        this function returns the optimizer and its parameters according to the backbone network selection, and
+        configuration file
         """
         params = []
         for key, value in dict(self.named_parameters()).items():
@@ -250,11 +258,13 @@ class FasterRCNN(nn.Module):
                         params += [{'params': [value], 'lr': opt['lr'] * 2, 'weight_decay': 0}]
                 else:
                     params += [{'params': [value], 'lr': opt['lr'], 'weight_decay': opt['weight_decay']}]
-
+        
+        # we use sthochastic gradient descent
         self.optimizer = t.optim.SGD(params, momentum=0.9)
         return self.optimizer
 
     def save(self):
+        # this function saves the trained network in the indicated directory 
         save_dict = dict()
 
         save_dict['head'] = self.head.state_dict()
@@ -263,15 +273,12 @@ class FasterRCNN(nn.Module):
 
         save_path = opt['save_path']
 
-        '''
-        save_dir = os.path.dirname(save_path)
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
-        '''
 
         t.save(save_dict, save_path)
 
     def load(self, path):
+        # this function loads the trained network for testing purposes
+        
         state_dict = t.load(path)
         if 'head' in state_dict:
             self.head.load_state_dict(state_dict['head'])
@@ -281,19 +288,8 @@ class FasterRCNN(nn.Module):
             self.optimizer.load_state_dict(state_dict['optimizer'])
 
     def use_preset(self, preset):
-        """Use the given preset during prediction.
-        This method changes values of :obj:`self.nms_thresh` and
-        :obj:`self.score_thresh`. These values are a threshold value
-        used for non maximum suppression and a threshold value
-        to discard low confidence proposals in :meth:`predict`,
-        respectively.
-        If the attributes need to be changed to something
-        other than the values provided in the presets, please modify
-        them by directly accessing the public attributes.
-        Args:
-            preset ({'visualize', 'evaluate'): A string to determine the
-                preset to use.
-        """
+        # here we use two nms_thresh and score_thresh for visualization and evaluation purposes
+        
         if preset == 'visualize':
             self.nms_thresh = 0.3
             self.score_thresh = 0.7
@@ -304,10 +300,12 @@ class FasterRCNN(nn.Module):
             raise ValueError('preset must be visualize or evaluate')
 
     def _suppress(self, raw_cls_bbox, raw_prob):
+        
+        # this function creates an array of results for an image input
         bbox = list()
         label = list()
         score = list()
-        # skip cls_id = 0 because it is the background class
+        
         for l in range(1, self.n_class):
             cls_bbox_l = raw_cls_bbox.reshape((-1, self.n_class, 4))[:, l, :]
             prob_l = raw_prob[:, l]
@@ -329,6 +327,7 @@ class FasterRCNN(nn.Module):
     @nograd
     def predict(self, imgs, sizes=None, visualize=False):
 
+        # this function gives the prediction results of an image input
         if visualize:
             self.use_preset('visualize')
             prepared_imgs = list()
@@ -354,8 +353,7 @@ class FasterRCNN(nn.Module):
             roi_cls_loc = roi_cls_loc.data
             roi = totensor(rois) / scale
 
-            # Convert predictions to bounding boxes in image coordinates.
-            # Bounding boxes are scaled to the scale of the input images.
+
             mean = t.Tensor(self.loc_normalize_mean).cuda(). \
                 repeat(self.n_class)[None]
             std = t.Tensor(self.loc_normalize_std).cuda(). \
@@ -382,7 +380,9 @@ class FasterRCNN(nn.Module):
         self.use_preset('evaluate')
         return bboxes, labels, scores
 
-
+'''
+these two functions are for conversion between tensor and numpy variables
+'''
 def totensor(data, cuda=True):
     if isinstance(data, np.ndarray):
         tensor = t.from_numpy(data)
@@ -401,12 +401,10 @@ def tonumpy(data):
 
 
 def normal_init(m, mean, stddev, truncated=False):
-    """
-    weight initalizer: truncated normal and random normal.
-    """
-    # x is a parameter
+    # this function initializes a layer with truncated gaussian random variable
+
     if truncated:
-        m.weight.data.normal_().fmod_(2).mul_(stddev).add_(mean)  # not a perfect approximation
+        m.weight.data.normal_().fmod_(2).mul_(stddev).add_(mean) 
     else:
         m.weight.data.normal_(mean, stddev)
         m.bias.data.zero_()
@@ -415,6 +413,14 @@ def normal_init(m, mean, stddev, truncated=False):
 class FasterRCNNHead(nn.Module):
     def __init__(self, n_class=20, ratios=[0.5, 1, 2], anchor_scales=[8, 16, 32], feat_stride=16, model='vgg16'):
         super(FasterRCNNHead, self).__init__()
+        
+        
+        ## This class includes the operations until region proposal network(included)
+        
+        
+        ## We extract the layers of vgg16 and resnet101 networks for feature extraction process, these layers are shared
+        ## with region proposal network and Fast R-CNN
+        ## We use pretrained networks and freeze some of the initial layers 
         if model == 'vgg16':
             pretrained = vgg16(pretrained=True)
             feature_extractor = list(pretrained.features)[:30]
@@ -460,6 +466,11 @@ class FasterRCNNHead(nn.Module):
 
 
 class FasterRCNNTail(nn.Module):
+    '''
+    This class includes the Fast R-CNN implementation. We extract the classifier layers of res101 and vgg16.
+    We get the pre-trained layers from torchvision.
+    '''
+    
     def __init__(self, n_class=20, ratios=[0.5, 1, 2], anchor_scales=[8, 16, 32], feat_stride=16, roi_size=7,
                  model='vgg16'):
         super(FasterRCNNTail, self).__init__()
@@ -520,6 +531,7 @@ class FasterRCNNTail(nn.Module):
         return roi_cls_locs, roi_scores
 
 
+## this is the smooth l1 loss formulated in the original paper.
 def _smooth_l1_loss(x, t, in_weight, sigma):
     sigma2 = sigma ** 2
     diff = in_weight * (x - t)
@@ -529,19 +541,15 @@ def _smooth_l1_loss(x, t, in_weight, sigma):
          (1 - flag) * (abs_diff - 0.5 / sigma2))
     return y.sum()
 
-
+## localization loss 
 def _fast_rcnn_loc_loss(pred_loc, gt_loc, gt_label, sigma):
     in_weight = t.zeros(gt_loc.shape).cuda()
-    # Localization loss is calculated only for positive rois.
-    # NOTE:  unlike origin implementation, 
-    # we don't need inside_weight and outside_weight, they can calculate by gt_label
     in_weight[(gt_label > 0).view(-1, 1).expand_as(in_weight).cuda()] = 1
     loc_loss = _smooth_l1_loss(pred_loc, gt_loc, in_weight.detach(), sigma)
-    # Normalize by total number of negtive and positive rois.
-    loc_loss /= ((gt_label >= 0).sum().float())  # ignore gt_label==-1 for rpn_loss
+    loc_loss /= ((gt_label >= 0).sum().float())  # ignore the labels assigned as -1
     return loc_loss
 
-
+## this function freezes batch normalization layers
 def set_bn_fix(m):
     classname = m.__class__.__name__
     if classname.find('BatchNorm') != -1:
