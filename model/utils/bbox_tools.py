@@ -7,15 +7,13 @@ def loc2bbox(src_bbox, loc):
 
     # src_bbox = (y_min, x_min, y_max, x_max), it includes multiple boxes not one
 
-    # I am not sure what this line does, it assigns the src_bbox to itself which doesn't make sense to me
-    # src_bbox = src_bbox.astype(src_bbox.dtype, copy=False)
 
     src_height = src_bbox[:, 2] - src_bbox[:, 0]
     src_width = src_bbox[:, 3] - src_bbox[:, 1]
     src_ctr_y = (src_bbox[:, 0] + src_bbox[:, 2]) * 0.5
     src_ctr_x = (src_bbox[:, 1] + src_bbox[:, 3]) * 0.5
 
-    # these are scales and offsets(?)
+    # these are scales and offsets
     dy = loc[:, 0::4]
     dx = loc[:, 1::4]
     dh = loc[:, 2::4]
@@ -51,7 +49,7 @@ def bbox2loc(src_bbox, dst_bbox):
     base_ctr_y = dst_bbox[:, 0] + 0.5 * base_height
     base_ctr_x = dst_bbox[:, 1] + 0.5 * base_width
 
-    # this should be for preventing some numerical errors
+    # this is for preventing numerical errors
     eps = np.finfo(height.dtype).eps
     height = np.maximum(height, eps)
     width = np.maximum(width, eps)
@@ -73,24 +71,17 @@ def bbox2loc(src_bbox, dst_bbox):
 
 
 def bbox_iou(bbox_a, bbox_b):
-    # Args
-    # bbox_a (array): An array whose shape is (N, 4)
-    # N is the number of bounding boxes.
-    # The dtype should be numpy.float32.
-    # bbox_b (array): An array similar to bbox_a,
-    # whose shape is (K, 4)
-    # The dtype should be numpy.float32.
-    # Returns:
-    #    array:
-    #    An array whose shape is (N, K)
-    #    An element at index (n, k) contains IoUs between
-    #    n th bounding box in bbox_a and k th bounding
-    #    box in bbox_b.
+    '''
+    This function calculates IoU (intersection of union) between bounding boxes. The IoU ratios are used to 
+    eliminate overlapping bounding boxes and for training we only take into account with IoU < 0.3 and IoU > 0.7 
+    for labeling as foreground and background.
+
+    '''    
     if bbox_a.shape[1] != 4 or bbox_b.shape[1] != 4:
         raise IndexError
 
     # top left
-    tl = np.maximum(bbox_a[:, None, :2], bbox_b[:, :2])  # I am not sure why there is none in the middle
+    tl = np.maximum(bbox_a[:, None, :2], bbox_b[:, :2])  
     # bottom right
     br = np.minimum(bbox_a[:, None, 2:], bbox_b[:, 2:])
 
