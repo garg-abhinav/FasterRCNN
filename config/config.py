@@ -1,5 +1,6 @@
 opt = dict(
-    voc_data_dir='/dataset/PASCAL2007/VOC2007/',
+    voc_data_dir='/home/rcam2/Faster_RCNN_resnet/Faster-R-CNN-master/dataset/VOCtrainval_06-Nov-2007/VOCdevkit/VOC2007/',
+    voc_data_test='/home/rcam2/Faster_RCNN_resnet/Faster-R-CNN-master/dataset/VOCtest_06-Nov-2007/VOCdevkit/VOC2007/',
     min_size=600,  # image resize
     max_size=1000,  # image resize
     num_workers=8,
@@ -11,7 +12,7 @@ opt = dict(
 
     # param for optimizer
     # 0.0005 in origin paper but 0.0001 in tf-faster-rcnn
-    weight_decay=0.0005,
+    weight_decay=0.0001,
     lr_decay=0.1,  # 1e-3 -> 1e-4
     lr=1e-3,
 
@@ -22,10 +23,9 @@ opt = dict(
 
     # preset
     data='voc',
-    pretrained_model='vgg16',  # change this to resnet101 for resnet101 pretrained model
-
-    # training
-    epoch=14,
+    # pretrained_model='resnet101',  # change this to resnet101/vgg16 for pretrained model
+    pretrained_model='vgg16',
+    epoch=20,
 
     use_adam=False,  # Use Adam optimizer
     use_chainer=False,  # try match everything as chainer
@@ -33,8 +33,13 @@ opt = dict(
     # debug
     debug_file='/tmp/debugf',
 
+    train=True,
     test_num=10000,
     # model
-    save_path='/checkpoints/fasterrcnn_checkpoint',
-    load_path=None
+    save_path='/home/rcam2/Faster_RCNN_resnet/Faster-R-CNN-master/checkpoints/checkpoint_vgg_3_scales_3_ratios_fourth',
+    load_path=None,
+
+    ratios=[0.5, 1, 2],
+    anchor_scales=[8, 16, 32],
+    feat_stride=16
 )

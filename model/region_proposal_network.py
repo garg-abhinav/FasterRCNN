@@ -11,9 +11,8 @@ class RegionProposalNetwork(nn.Module):
     def __init__(
             self, in_channels=512, mid_channels=512, ratios=[0.5, 1, 2],
             anchor_scales=[8, 16, 32], feat_stride=16,
-            proposal_creator_params=dict(),
+            proposal_creator_params=dict()
     ):
-
         super(RegionProposalNetwork, self).__init__()
         self.anchor_base = generate_anchor_base(
             anchor_scales=anchor_scales, ratios=ratios)
@@ -26,14 +25,13 @@ class RegionProposalNetwork(nn.Module):
         normal_init(self.conv1, 0, 0.01)
         normal_init(self.score, 0, 0.01)
         normal_init(self.loc, 0, 0.01)
-        
-    def forward(self, x, img_size, scale=1.):
 
+    def forward(self, x, img_size, scale=1.):
         n, _, hh, ww = x.shape
         anchor = _enumerate_shifted_anchor(
             np.array(self.anchor_base),
             self.feat_stride, hh, ww)
-        
+
         n_anchor = anchor.shape[0] // (hh * ww)
         h = F.relu(self.conv1(x))
 
@@ -87,7 +85,7 @@ def _enumerate_shifted_anchor(anchor_base, feat_stride, height, width):
     A = anchor_base.shape[0]
     K = shift.shape[0]
     anchor = anchor_base.reshape((1, A, 4)) + \
-            shift.reshape((1, K, 4)).transpose((1, 0, 2))
+             shift.reshape((1, K, 4)).transpose((1, 0, 2))
     anchor = anchor.reshape((K * A, 4)).astype(np.float32)
     return anchor
 

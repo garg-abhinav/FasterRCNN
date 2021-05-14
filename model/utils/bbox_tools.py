@@ -61,6 +61,13 @@ def bbox2loc(src_bbox, dst_bbox):
     dh = np.log(base_height / height)
     dw = np.log(base_width / width)
 
+    '''
+    if np.isnan(dh):
+        dh = 1
+    if np.isnan(dw):
+        dw = 1
+    '''
+
     loc = np.vstack((dy, dx, dh, dw)).transpose()
     return loc
 
@@ -76,8 +83,8 @@ def bbox_iou(bbox_a, bbox_b):
     # Returns:
     #    array:
     #    An array whose shape is (N, K)
-    #    An element at index (n, k) contains IoUs between 
-    #    n th bounding box in bbox_a and k th bounding 
+    #    An element at index (n, k) contains IoUs between
+    #    n th bounding box in bbox_a and k th bounding
     #    box in bbox_b.
     if bbox_a.shape[1] != 4 or bbox_b.shape[1] != 4:
         raise IndexError

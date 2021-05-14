@@ -47,6 +47,7 @@ class FasterRCNN(nn.Module):
 
         return roi_cls_locs, roi_scores, rois, roi_indices
 
+    '''
     def train_rpn_batch(self, imgs, bboxes, labels, scale):
         n = bboxes.shape[0]
 
@@ -161,6 +162,7 @@ class FasterRCNN(nn.Module):
         self.optimizer.step()
 
         return roi_loc_loss, roi_cls_loss, sum
+    '''
 
     def train_batch(self, imgs, bboxes, labels, scale):
         n = bboxes.shape[0]
@@ -242,7 +244,10 @@ class FasterRCNN(nn.Module):
         for key, value in dict(self.named_parameters()).items():
             if value.requires_grad:
                 if 'bias' in key:
-                    params += [{'params': [value], 'lr': opt['lr'] * 2, 'weight_decay': 0}]
+                    if opt['pretrained_model'] == 'resnet101':
+                        params += [{'params': [value], 'lr': opt['lr'], 'weight_decay': 0}]
+                    else:
+                        params += [{'params': [value], 'lr': opt['lr'] * 2, 'weight_decay': 0}]
                 else:
                     params += [{'params': [value], 'lr': opt['lr'], 'weight_decay': opt['weight_decay']}]
 
@@ -258,9 +263,11 @@ class FasterRCNN(nn.Module):
 
         save_path = opt['save_path']
 
+        '''
         save_dir = os.path.dirname(save_path)
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
+        '''
 
         t.save(save_dict, save_path)
 
@@ -418,20 +425,24 @@ class FasterRCNNHead(nn.Module):
 
             # print(feature_extractor)
             self.feature_extractor = nn.Sequential(*feature_extractor)
+            self.rpn = RegionProposalNetwork(512, 512, ratios=ratios, anchor_scales=anchor_scales,
+                                             feat_stride=feat_stride)
         elif model == 'resnet101':
             pretrained = resnet101(pretrained=True)
             self.feature_extractor = nn.Sequential(pretrained.conv1, pretrained.bn1, pretrained.relu,
-                                          pretrained.maxpool, pretrained.layer1, pretrained.layer2, pretrained.layer3)
+                                                   pretrained.maxpool, pretrained.layer1, pretrained.layer2,
+                                                   pretrained.layer3)
 
-            for i in [0, 1, 4, 5, 6]:
+            # for i in [0, 1, 4, 5, 6]:
+            for i in [0, 4]:
                 for p in self.feature_extractor[i].parameters():
                     p.requires_grad = False
 
             self.feature_extractor.apply(set_bn_fix)
+            self.rpn = RegionProposalNetwork(1024, 512, ratios=ratios, anchor_scales=anchor_scales,
+                                             feat_stride=feat_stride)
         else:
             raise ValueError(f'Model {model} has not been implemented yet')
-
-        self.rpn = RegionProposalNetwork(512, 512, ratios=ratios, anchor_scales=anchor_scales, feat_stride=feat_stride)
 
         self.n_class = n_class
         self.ratios = ratios
@@ -468,16 +479,20 @@ class FasterRCNNTail(nn.Module):
             del classifier[5]
             del classifier[2]
             self.classifier = nn.Sequential(*classifier)
+            self.cls_loc = nn.Linear(4096, n_class * 4)
+            self.score = nn.Linear(4096, n_class)
 
         elif self.base_model == 'resnet101':
             pretrained = resnet101(pretrained=True)
             self.classifier = nn.Sequential(pretrained.layer4)
+            self.classifier.apply(set_bn_fix)
+
+            self.cls_loc = nn.Linear(2048, n_class * 4)
+            self.score = nn.Linear(2048, n_class)
 
         else:
             raise ValueError(f'Model {self.base_model} has not been implemented yet')
 
-        self.cls_loc = nn.Linear(4096, n_class * 4)
-        self.score = nn.Linear(4096, n_class)
         self.roi = RoIPool((self.roi_size, self.roi_size), self.spatial_scale)
 
         normal_init(self.cls_loc, 0, 0.001)
@@ -491,12 +506,15 @@ class FasterRCNNTail(nn.Module):
         indices_and_rois = xy_indices_and_rois.contiguous()
 
         pool = self.roi(features, indices_and_rois)
-        pool = pool.view(pool.size(0), -1)
+
         if self.base_model == 'resnet101':
             fc7 = self.classifier(pool).mean(3).mean(2)
         else:
+            pool = pool.view(pool.size(0), -1)
             fc7 = self.classifier(pool)
+
         roi_cls_locs = self.cls_loc(fc7)
+
         roi_scores = self.score(fc7)
 
         return roi_cls_locs, roi_scores

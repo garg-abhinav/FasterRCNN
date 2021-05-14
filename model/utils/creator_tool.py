@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from torchvision.ops import nms
 from .bbox_tools import bbox2loc, bbox_iou, loc2bbox
+from config.config import opt
 
 
 class ProposalTargetCreator(object):
@@ -21,6 +22,11 @@ class ProposalTargetCreator(object):
                  loc_normalize_std=(0.1, 0.1, 0.2, 0.2)):
 
         n_bbox, _ = bbox.shape  # number of boxes
+
+        ####
+        roi = np.concatenate((roi, bbox), axis=0)
+        ####
+
         pos_roi_per_image = np.round(self.n_sample * self.pos_ratio)  # number of foregrounds
         iou = bbox_iou(roi, bbox)
 
@@ -28,18 +34,19 @@ class ProposalTargetCreator(object):
         max_iou = iou.max(axis=1)
         # Offset range of classes from [0, n_fg_class - 1] to [1, n_fg_class].
         # The label with value 0 is the background.
-        #gt_roi_label = label[gt_assignment] + 1
-        gt_roi_label = label[gt_assignment]
+        gt_roi_label = label[gt_assignment] + 1
+        # gt_roi_label = label[gt_assignment]
 
         # Select foreground RoIs as those with >= pos_iou_thresh IoU.
         pos_index = np.where(max_iou >= self.pos_iou_thresh)[0]
         pos_roi_per_this_image = int(min(pos_roi_per_image, pos_index.size))
+
         if pos_index.size > 0:
             pos_index = np.random.choice(
                 pos_index, size=pos_roi_per_this_image, replace=False)
 
         # Select background RoIs as those within
-        # [neg_iou_thresh_lo, neg_iou_thresh_hi).
+
         neg_index = np.where((max_iou < self.neg_iou_thresh_hi) &
                              (max_iou >= self.neg_iou_thresh_lo))[0]
         neg_roi_per_this_image = self.n_sample - pos_roi_per_this_image
@@ -57,8 +64,8 @@ class ProposalTargetCreator(object):
 
         # Compute offsets and scales to match sampled RoIs to the GTs.
         gt_roi_loc = bbox2loc(sample_roi, bbox[gt_assignment[keep_index]])
-        # gt_roi_loc = ((gt_roi_loc - np.array(loc_normalize_mean, np.float32)
-        #               ) / np.array(loc_normalize_std, np.float32))
+        gt_roi_loc = ((gt_roi_loc - np.array(loc_normalize_mean, np.float32)
+                       ) / np.array(loc_normalize_std, np.float32))
 
         return sample_roi, gt_roi_loc, gt_roi_label
 
@@ -119,8 +126,16 @@ class AnchorTargetCreator(object):
         label = np.empty((len(inside_index),), dtype=np.int32)
         label.fill(-1)
 
+        try:
+            argmax_ious, max_ious, gt_argmax_ious = \
+                self._calc_ious(anchor, bbox, inside_index)
+        except:
+            return inside_index, label
+
+        '''    
         argmax_ious, max_ious, gt_argmax_ious = \
             self._calc_ious(anchor, bbox, inside_index)
+        '''
 
         label[max_ious < self.neg_iou_thresh] = 0
 
@@ -177,7 +192,7 @@ def _unmap(data, count, index, fill=0):
 
 
 def _get_inside_index(anchor, H, W):
-    # Calc indicies of anchors which are located completely inside of the image
+    # Calc indices of anchors which are located completely inside of the image
     # whose size is speficied.
     index_inside = np.where(
         (anchor[:, 0] >= 0) &
@@ -195,7 +210,7 @@ class ProposalCreator:
                  n_train_post_nms=2000,
                  n_test_pre_nms=6000,
                  n_test_post_nms=300,
-                 min_size=16
+                 min_size=16,
                  ):
         self.parent_model = parent_model
         self.nms_thresh = nms_thresh
@@ -207,10 +222,15 @@ class ProposalCreator:
 
     def __call__(self, loc, score,
                  anchor, img_size, scale=1.):
+
+        #### you need to add a training vs. testing modes here
+
         # NOTE: when test, remember
         # faster_rcnn.eval()
-        # to set self.traing = False
-        if self.parent_model.training:
+        # to set self.training = False
+        print(opt['train'])
+
+        if opt['train']:
             n_pre_nms = self.n_train_pre_nms
             n_post_nms = self.n_train_post_nms
         else:

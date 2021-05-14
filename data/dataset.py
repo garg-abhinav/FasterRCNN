@@ -35,7 +35,7 @@ class ValDataset:
 class TestDataset:
     def __init__(self, opt, split='test'):
         self.opt = opt
-        self.db = VOCBboxDataset(self.opt['voc_data_dir'], split=split)
+        self.db = VOCBboxDataset(self.opt['voc_data_test'], split=split)
 
     def __getitem__(self, idx):
         ori_img, bbox, label = self.db[idx]

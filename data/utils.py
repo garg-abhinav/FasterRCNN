@@ -3,6 +3,7 @@ import numpy as np
 import torchvision
 from skimage import transform
 import random
+import torch as t
 
 
 def read_image(path, dtype=np.float32, color=True):
@@ -12,6 +13,25 @@ def read_image(path, dtype=np.float32, color=True):
     order of the channels is RGB else grayscale image is returned
     """
 
+    f = Image.open(path)
+    try:
+        if color:
+            img = f.convert('RGB')
+        else:
+            img = f.convert('P')
+        img = np.asarray(img, dtype=dtype)
+    finally:
+        if hasattr(f, 'close'):
+            f.close()
+
+    if img.ndim == 2:
+        # reshape (H, W) -> (1, H, W)
+        return img[np.newaxis]
+    else:
+        # transpose (H, W, C) -> (C, H, W)
+        return img.transpose((2, 0, 1))
+
+    '''
     with Image.open(path) as img:
         if color:
             img = img.convert('RGB')
@@ -25,12 +45,20 @@ def read_image(path, dtype=np.float32, color=True):
     else:
         # transpose (H, W, C) -> (C, H, W)
         return img.transpose((2, 0, 1))
+    '''
 
 
 def normalize(img):
     """
     Normalizes the input image with mean 0 and std 1
     """
+
+    normalize = torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                                 std=[0.229, 0.224, 0.225])
+    img = normalize(t.from_numpy(img))
+    return img.numpy()
+
+    '''
     transform = torchvision.transforms.Compose([
         torchvision.transforms.ToTensor(),
         torchvision.transforms.Normalize(
@@ -40,6 +68,7 @@ def normalize(img):
     ])
     normalized_img = transform(img)
     return normalized_img.numpy()
+    '''
 
 
 def preprocess(img, min_size=600, max_size=1000):
@@ -51,7 +80,7 @@ def preprocess(img, min_size=600, max_size=1000):
     scale2 = max_size / max(H, W)
     scale = min(scale1, scale2)
     img = img / 255.
-    img = transform.resize(img, (C, H * scale, W * scale), mode='reflect',anti_aliasing=False)
+    img = transform.resize(img, (C, H * scale, W * scale), mode='reflect', anti_aliasing=False)
     # both the longer and shorter should be less than max_size and min_size
     return normalize(img)
 
