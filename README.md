@@ -63,7 +63,7 @@ Update `save_path` to the path where model files are to be stored.
 python approx_train.py 
 ```
 
-### Inference
+## Inference
 To run inference on select test images, update `train=False` and `save_path` to the path where trained model is located in `config/config.py`.
 ```bash
 python test.py 
