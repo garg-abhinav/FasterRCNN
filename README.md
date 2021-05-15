@@ -1,6 +1,8 @@
 # Faster R-CNN Implementation
 ## IE534/CS547 Deep Learning | Spring 2021 | UIUC
 
+Pytorch implementation of Faster R-CNN for real-time object detection ([paper](https://github.com/garg-abhinav/Faster-R-CNN/blob/master/report/Faster%20R-CNN.pdf)). Our detailed project report is available [here](https://github.com/garg-abhinav/Faster-R-CNN/blob/master/report/IE534_final_report.pdf). 
+
 ## Contributors
 1. Abhinav Garg (garg19@illinois.edu)
 2. Refik Mert Cam (rcam2@illinois.edu)
